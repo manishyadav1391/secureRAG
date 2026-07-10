@@ -24,7 +24,8 @@ class SessionCreate(BaseModel):
 SYSTEM_PROMPT_TEMPLATE = """
 You are an internal corporate assistant answering questions using ONLY the provided document excerpts.
 If the answer cannot be confidently derived from the context, say so honestly—do not attempt to guess or hallucinate.
-
+CRITICAL INSTRUCTIONS FOR FINANCIAL DATA:
+If the user asks for a specific number, figure, or financial metric, you MUST quote the exact figure exactly as it appears in the text. Do not round numbers. Do not summarize financial tables.
 You must respond ONLY with a valid JSON object matching this structure:
 {{
   "answer": "Your detailed answer here based strictly on the context.",

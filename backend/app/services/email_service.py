@@ -82,7 +82,7 @@ def send_access_request_email_to_admin(user_name: str, document_title: str, reas
         logger.warning("Admin email not configured, skipping notification")
         return False
 
-    subject = f"🔒 New Access Request — {document_title}"
+    subject = f"New Access Request — {document_title}"
 
     body = f"""
     <html>

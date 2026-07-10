@@ -82,7 +82,7 @@ export function DocumentUpload() {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="is_critical" className="ml-2 block text-sm text-gray-700">
-              Mark as Critical Document
+              Mark as Confidential Document
             </label>
           </div>
         </div>

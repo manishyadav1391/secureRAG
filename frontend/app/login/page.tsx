@@ -44,11 +44,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md px-4 animate-fade-in">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex p-3.5 bg-indigo-600/15 rounded-2xl mb-4 animate-pulse-glow">
-            <Shield className="w-8 h-8 text-indigo-400" />
+          <div className="inline-flex p-3.5 bg-white-600/15 rounded-2xl mb-4 animate-pulse-glow">
+            <Shield className="w-8 h-8 text-white-500" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">SecurRAG</h1>
-          <p className="text-sm text-gray-500 mt-1">Internal Knowledge Base</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">IntelliDocs AI</h1>
+          <p className="text-sm text-gray-500 mt-1">AI-Powered Enterprise Document Assistant</p>
         </div>
 
         {/* Login Card */}

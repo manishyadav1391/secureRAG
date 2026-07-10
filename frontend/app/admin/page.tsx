@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import {
   Shield, Users, FileText, Clock, MessageSquare,
   Plus, Check, X, Loader2, Trash2, LogOut,
-  BarChart3, ChevronRight, AlertCircle, UserPlus
+  BarChart3, ChevronRight, AlertCircle, UserPlus, Download
 } from 'lucide-react';
 
 type DashboardStats = {
@@ -70,10 +70,13 @@ export default function AdminPage() {
   
   // Upload state
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadType, setUploadType] = useState<'file' | 'folder'>('file');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFolderFiles, setUploadFolderFiles] = useState<File[]>([]);
   const [uploadMinRole, setUploadMinRole] = useState('employee');
   const [uploadIsCritical, setUploadIsCritical] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; currentFileName: string } | null>(null);
   const [uploadMessage, setUploadMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [processingId, setProcessingId] = useState<number | null>(null);
@@ -163,26 +166,120 @@ export default function AdminPage() {
     }
   };
 
+  const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUploadMessage(null);
+    const files = Array.from(e.target.files || []);
+    // Filter for .pdf and .docx (case-insensitive)
+    const allowed = files.filter(
+      (f) => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.docx')
+    );
+    setUploadFolderFiles(allowed);
+    if (allowed.length === 0 && files.length > 0) {
+      setUploadMessage({
+        type: 'error',
+        text: 'No supported documents (.pdf, .docx) were found in the selected folder.'
+      });
+    }
+  };
+
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) return;
-    setUploading(true);
     setUploadMessage(null);
-    const formData = new FormData();
-    formData.append('file', uploadFile);
-    formData.append('min_role', uploadMinRole);
-    formData.append('is_critical', String(uploadIsCritical));
+    setUploadProgress(null);
+
+    if (uploadType === 'file') {
+      if (!uploadFile) return;
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('min_role', uploadMinRole);
+      formData.append('is_critical', String(uploadIsCritical));
+      try {
+        const res = await api.post('/documents/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setUploadMessage({ type: 'success', text: res.data.message });
+        setUploadFile(null);
+        fetchAll();
+      } catch (err: any) {
+        setUploadMessage({ type: 'error', text: err.response?.data?.detail || 'Upload failed' });
+      } finally {
+        setUploading(false);
+      }
+    } else {
+      if (uploadFolderFiles.length === 0) return;
+      setUploading(true);
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (let i = 0; i < uploadFolderFiles.length; i++) {
+        const currentFile = uploadFolderFiles[i];
+        setUploadProgress({
+          current: i + 1,
+          total: uploadFolderFiles.length,
+          currentFileName: currentFile.name
+        });
+
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('min_role', uploadMinRole);
+        formData.append('is_critical', String(uploadIsCritical));
+
+        try {
+          await api.post('/documents/upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to upload ${currentFile.name}`, err);
+          failCount++;
+        }
+      }
+
+      setUploading(false);
+      setUploadProgress(null);
+      setUploadFolderFiles([]);
+      fetchAll();
+
+      if (failCount === 0) {
+        setUploadMessage({
+          type: 'success',
+          text: `Successfully processed all ${successCount} documents from folder!`
+        });
+      } else {
+        setUploadMessage({
+          type: 'error',
+          text: `Processed folder: ${successCount} succeeded, ${failCount} failed.`
+        });
+      }
+    }
+  };
+
+  const handleDownloadDocument = async (id: number, filename: string) => {
     try {
-      const res = await api.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const response = await api.get(`/documents/download/${id}`, {
+        responseType: 'blob',
       });
-      setUploadMessage({ type: 'success', text: res.data.message });
-      setUploadFile(null);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Failed to download document.');
+    }
+  };
+
+  const handleDeleteDocument = async (id: number, title: string) => {
+    if (!confirm(`Are you sure you want to completely delete "${title}"? This will remove all database index chunks, embeddings, and the source file.`)) return;
+    try {
+      await api.delete(`/documents/${id}`);
       fetchAll();
     } catch (err: any) {
-      setUploadMessage({ type: 'error', text: err.response?.data?.detail || 'Upload failed' });
-    } finally {
-      setUploading(false);
+      alert(err.response?.data?.detail || 'Delete failed');
     }
   };
 
@@ -496,14 +593,20 @@ export default function AdminPage() {
                     <p className="text-sm text-gray-500 mt-1">{documents.length} indexed document{documents.length !== 1 ? 's' : ''}</p>
                   </div>
                   <button
-                    onClick={() => { setShowUpload(!showUpload); setUploadMessage(null); }}
+                    onClick={() => {
+                      setShowUpload(!showUpload);
+                      setUploadMessage(null);
+                      setUploadFile(null);
+                      setUploadFolderFiles([]);
+                      setUploadProgress(null);
+                    }}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/20"
                   >
                     <Plus className="w-4 h-4" />
                     Upload Document
                   </button>
                 </div>
-
+ 
                 {/* Upload Form */}
                 {showUpload && (
                   <div className="glass rounded-2xl p-6 animate-fade-in">
@@ -511,17 +614,76 @@ export default function AdminPage() {
                       <FileText className="w-4 h-4 text-indigo-400" />
                       Upload & Index Document
                     </h3>
+                    
+                    {/* Tab Switcher for Upload Type */}
+                    <div className="flex gap-2 mb-4 bg-gray-900/60 p-1 rounded-xl border border-gray-800/60 max-w-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadType('file');
+                          setUploadMessage(null);
+                          setUploadProgress(null);
+                        }}
+                        className={`flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all ${
+                          uploadType === 'file'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        Single File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadType('folder');
+                          setUploadMessage(null);
+                          setUploadProgress(null);
+                        }}
+                        className={`flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all ${
+                          uploadType === 'folder'
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'text-gray-400 hover:text-gray-200'
+                        }`}
+                      >
+                        Whole Folder
+                      </button>
+                    </div>
+
                     <form onSubmit={handleUpload} className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select File (.pdf, .docx)</label>
-                        <input
-                          type="file"
-                          accept=".pdf,.docx"
-                          onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                          className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white file:cursor-pointer hover:file:bg-indigo-700 transition"
-                          required
-                        />
-                      </div>
+                      {uploadType === 'file' ? (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select File (.pdf, .docx)</label>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx"
+                            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                            className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white file:cursor-pointer hover:file:bg-indigo-700 transition"
+                            required
+                          />
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Select Folder</label>
+                          <input
+                            type="file"
+                            // @ts-ignore
+                            webkitdirectory=""
+                            // @ts-ignore
+                            directory=""
+                            multiple
+                            onChange={handleFolderChange}
+                            className="w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white file:cursor-pointer hover:file:bg-indigo-700 transition"
+                            required
+                          />
+                          {uploadFolderFiles.length > 0 && (
+                            <p className="text-xs text-emerald-400 font-medium mt-1.5 flex items-center gap-1.5 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Detected {uploadFolderFiles.length} supported documents (.pdf, .docx) to upload.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Min Role Access</label>
@@ -543,10 +705,33 @@ export default function AdminPage() {
                               onChange={(e) => setUploadIsCritical(e.target.checked)}
                               className="rounded bg-[#0d0e15] border-gray-700 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <span className="text-sm text-gray-300">Critical Document</span>
+                            <span className="text-sm text-gray-300">Confidential Document</span>
                           </label>
                         </div>
                       </div>
+
+                      {uploadProgress && (
+                        <div className="bg-[#0d0e15] border border-gray-800/80 rounded-xl p-4 space-y-2">
+                          <div className="flex justify-between items-center text-xs font-semibold">
+                            <span className="text-indigo-400">Processing Folder Documents...</span>
+                            <span className="text-gray-400">
+                              {uploadProgress.current} / {uploadProgress.total} ({Math.round((uploadProgress.current / uploadProgress.total) * 100)}%)
+                            </span>
+                          </div>
+                          
+                          <div className="w-full bg-gray-900 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                            />
+                          </div>
+                          
+                          <p className="text-[11px] text-gray-500 truncate">
+                            Current: <span className="text-gray-300 font-mono">{uploadProgress.currentFileName}</span>
+                          </p>
+                        </div>
+                      )}
+
                       {uploadMessage && (
                         <div className={`p-3 rounded-xl text-sm font-medium ${
                           uploadMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
@@ -554,9 +739,10 @@ export default function AdminPage() {
                           {uploadMessage.text}
                         </div>
                       )}
+                      
                       <button
                         type="submit"
-                        disabled={uploading || !uploadFile}
+                        disabled={uploading || (uploadType === 'file' ? !uploadFile : uploadFolderFiles.length === 0)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-6 py-2.5 rounded-xl transition disabled:opacity-50 flex items-center gap-2"
                       >
                         {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -581,6 +767,7 @@ export default function AdminPage() {
                           <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Access</th>
                           <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Chunks</th>
                           <th className="text-left px-5 py-3.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Uploaded</th>
+                          <th className="text-right px-5 py-3.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -608,6 +795,22 @@ export default function AdminPage() {
                             <td className="px-5 py-3.5 text-gray-400 font-mono text-xs">{doc.chunk_count}</td>
                             <td className="px-5 py-3.5 text-gray-500 text-xs">
                               {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : '—'}
+                            </td>
+                            <td className="px-5 py-3.5 text-right flex justify-end gap-1.5">
+                              <button
+                                onClick={() => handleDownloadDocument(doc.id, doc.filename)}
+                                className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition"
+                                title="Download document"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                                title="Delete document completely"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </td>
                           </tr>
                         ))}

@@ -15,3 +15,5 @@ sentence-transformers
 pypdf
 pdfplumber
 python-docx
+# Email
+smtplib
