@@ -320,7 +320,7 @@ export default function AdminPage() {
               <Shield className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-base leading-tight">SecurRAG</h1>
+              <h1 className="text-white font-bold text-base leading-tight">IntelliDocs AI</h1>
               <p className="text-[10px] text-indigo-400 font-semibold uppercase tracking-widest">Admin Panel</p>
             </div>
           </div>

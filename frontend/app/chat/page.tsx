@@ -222,7 +222,7 @@ export default function ChatPage() {
               <Shield className="w-4.5 h-4.5" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-sm leading-tight">SecurRAG</h1>
+              <h1 className="text-white font-bold text-sm leading-tight">IntelliDocs AI</h1>
               <p className="text-[9px] text-indigo-400 font-semibold uppercase tracking-widest">Knowledge Base</p>
             </div>
           </div>
@@ -569,7 +569,7 @@ export default function ChatPage() {
             </button>
           </form>
           <p className="text-center text-[10px] text-gray-700 mt-2">
-            SecurRAG uses RAG to answer from your authorized documents only
+            IntelliDocs AI uses RAG to answer from your authorized documents only
           </p>
         </div>
       </main>

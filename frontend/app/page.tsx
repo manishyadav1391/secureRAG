@@ -28,7 +28,7 @@ export default function Home() {
           <Shield className="w-10 h-10 text-indigo-400" />
         </div>
         <div className="text-center">
-          <h1 className="text-xl font-bold text-white">SecurRAG</h1>
+          <h1 className="text-xl font-bold text-white">IntelliDocs AI</h1>
           <p className="text-sm text-gray-500 mt-1">Loading your workspace...</p>
         </div>
         <div className="flex gap-1.5">

@@ -10,9 +10,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SecurRAG — Internal Knowledge Base",
+  title: "IntelliDocs AI — AI-Powered Enterprise Document Assistant",
   description: "AI-powered internal document Q&A chatbot with role-based access control. Ask questions about company policies, procedures, and documents securely.",
-  keywords: ["knowledge base", "chatbot", "RAG", "internal documents", "AI assistant"],
+  keywords: ["Enterprise Document Assistant", "knowledge base", "chatbot", "RAG", "internal documents", "AI assistant"],
 };
 
 export default function RootLayout({
